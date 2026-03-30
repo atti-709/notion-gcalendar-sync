@@ -30,10 +30,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const payload = JSON.parse(body);
 
-  // Handle verification challenge
+  // Handle verification challenge — also accept GET so we can read the last token
   if (payload.type === "url_verification") {
-    console.log("VERIFICATION_TOKEN:" + payload.verification_token);
-    return NextResponse.json({ challenge: payload.challenge });
+    return NextResponse.json({ challenge: payload.challenge, _token: payload.verification_token });
   }
 
   // Process page update events
