@@ -19,10 +19,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const signature = request.headers.get("x-notion-signature");
   const webhookSecret = process.env.NOTION_WEBHOOK_SECRET;
   if (webhookSecret && signature) {
-    const expected = crypto
+    const expected = `sha256=${crypto
       .createHmac("sha256", webhookSecret)
       .update(body)
-      .digest("hex");
+      .digest("hex")}`;
     if (signature !== expected) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
