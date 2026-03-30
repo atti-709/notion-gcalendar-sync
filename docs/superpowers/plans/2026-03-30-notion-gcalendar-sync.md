@@ -122,7 +122,7 @@ node_modules/
 ```
 # Notion
 NOTION_API_KEY=<your-notion-api-key>
-NOTION_DATABASE_ID=e19eb46bf77143bcb4c6f3c9ca39bd22
+NOTION_DATABASE_ID=<your-database-id>
 NOTION_WEBHOOK_SECRET=
 
 # Google Calendar
