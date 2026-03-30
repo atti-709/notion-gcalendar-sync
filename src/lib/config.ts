@@ -43,7 +43,7 @@ export function getSyncStreams(): SyncStream[] {
     {
       name: "Social Media (Publish)",
       spaceId: "4b5db616-566e-422c-aeaf-562a7bebb13f",
-      calendarName: "Social Media",
+      calendarName: "Svätonázor Social Media",
       topLevelOnly: false,
       notionDateProperty: "Publish Date",
       eventType: "publish",
@@ -57,7 +57,7 @@ export function getSyncStreams(): SyncStream[] {
     {
       name: "Social Media (Deadline)",
       spaceId: "4b5db616-566e-422c-aeaf-562a7bebb13f",
-      calendarName: "Social Media",
+      calendarName: "Svätonázor Social Media",
       topLevelOnly: false,
       notionDateProperty: "Deadline",
       eventType: "deadline",
@@ -71,7 +71,7 @@ export function getSyncStreams(): SyncStream[] {
     {
       name: "Video",
       spaceId: "9a87fda0-ca7f-40c5-b89d-c2e05a8a4e7c",
-      calendarName: "Video",
+      calendarName: "Svätonázor Video",
       topLevelOnly: false,
       notionDateProperty: "Deadline",
       eventType: "deadline",
