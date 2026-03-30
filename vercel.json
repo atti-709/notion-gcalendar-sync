@@ -1,0 +1,3 @@
+{
+  "crons": [{ "path": "/api/sync?secret=${SYNC_SECRET}", "schedule": "0 6 * * *" }]
+}
