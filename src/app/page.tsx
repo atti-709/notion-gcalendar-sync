@@ -1,0 +1,55 @@
+"use client";
+
+import { useState } from "react";
+
+export default function Home() {
+  const [status, setStatus] = useState<"idle" | "syncing" | "done" | "error">("idle");
+  const [results, setResults] = useState<any>(null);
+  const [secret, setSecret] = useState("");
+
+  async function handleSync() {
+    setStatus("syncing");
+    setResults(null);
+    try {
+      const res = await fetch(`/api/sync?secret=${encodeURIComponent(secret)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus("error");
+        setResults(data);
+        return;
+      }
+      setStatus("done");
+      setResults(data);
+    } catch (err) {
+      setStatus("error");
+      setResults({ error: String(err) });
+    }
+  }
+
+  return (
+    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 600, margin: "40px auto", padding: "0 20px" }}>
+      <h1>Notion → GCal Sync</h1>
+      <div style={{ marginBottom: 16 }}>
+        <input
+          type="password"
+          placeholder="Sync secret"
+          value={secret}
+          onChange={(e) => setSecret(e.target.value)}
+          style={{ padding: "8px 12px", marginRight: 8, border: "1px solid #ccc", borderRadius: 4, width: 200 }}
+        />
+        <button
+          onClick={handleSync}
+          disabled={status === "syncing" || !secret}
+          style={{ padding: "8px 16px", borderRadius: 4, border: "none", background: "#0070f3", color: "#fff", cursor: "pointer" }}
+        >
+          {status === "syncing" ? "Syncing..." : "Sync Now"}
+        </button>
+      </div>
+      {results && (
+        <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13 }}>
+          {JSON.stringify(results, null, 2)}
+        </pre>
+      )}
+    </main>
+  );
+}
