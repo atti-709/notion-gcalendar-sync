@@ -32,6 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Handle verification challenge
   if (payload.type === "url_verification") {
+    console.log("Webhook verification token:", payload.verification_token);
     return NextResponse.json({ challenge: payload.challenge });
   }
 
