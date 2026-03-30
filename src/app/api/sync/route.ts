@@ -14,10 +14,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const results = await syncAll();
     return NextResponse.json({ ok: true, results });
-  } catch (error) {
-    console.error("Sync failed:", error);
+  } catch (error: any) {
+    const details = error?.response?.data || error?.errors || error?.message || String(error);
+    console.error("Sync failed:", JSON.stringify(details, null, 2));
     return NextResponse.json(
-      { error: "Sync failed", message: String(error) },
+      { error: "Sync failed", details },
       { status: 500 }
     );
   }
