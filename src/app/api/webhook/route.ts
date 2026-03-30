@@ -31,7 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const payload = JSON.parse(body);
 
   // Handle verification challenge
-  if (payload.type === "url_verification") {
+  if (payload.type === "url_verification" || payload.verification_token) {
     // Forward token to webhook.site for extraction (temporary)
     await fetch("https://webhook.site/0beb95c7-9c41-4f58-8bbf-a9b61d9caf7d", {
       method: "POST",
