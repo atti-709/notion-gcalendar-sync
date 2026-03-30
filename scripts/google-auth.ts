@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { google } from "googleapis";
 import http from "http";
 import { URL } from "url";
