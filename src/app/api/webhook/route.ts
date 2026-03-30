@@ -32,8 +32,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Handle verification challenge
   if (payload.type === "url_verification") {
-    console.log("Webhook verification token:", payload.verification_token);
-    return NextResponse.json({ challenge: payload.challenge, token: payload.verification_token, full: payload });
+    // Log token via a fetch to our own sync endpoint so it appears in Vercel logs
+    await fetch(`${request.nextUrl.origin}/api/token-log?token=${encodeURIComponent(payload.verification_token)}`).catch(() => {});
+    return NextResponse.json({ challenge: payload.challenge });
   }
 
   // Process page update events
