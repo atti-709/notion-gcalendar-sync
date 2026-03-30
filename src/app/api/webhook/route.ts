@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getEnv, getSyncStreams } from "@/lib/config";
+import { getSyncStreams } from "@/lib/config";
 import { getNotionClient, fetchPage, parseNotionTask, hasParentTask } from "@/lib/notion";
 import {
   getCalendarClient,
@@ -9,7 +9,6 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
-  buildEventTitle,
 } from "@/lib/google-calendar";
 import { determineAction } from "@/lib/sync";
 
