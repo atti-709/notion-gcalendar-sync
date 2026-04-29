@@ -35,7 +35,10 @@ export interface TaskData {
   platforms: string[];
 }
 
-export function getSyncStreams(): SyncStream[] {
+// All known stream templates across spaces. The base streams written to
+// team-wide calendars are a subset (currently just Episodes → primary);
+// per-user calendars still aggregate all four templates filtered by Assignee.
+function getStreamTemplates(): SyncStream[] {
   return [
     {
       name: "Episodes",
@@ -49,7 +52,6 @@ export function getSyncStreams(): SyncStream[] {
     {
       name: "Social Media (Publish)",
       spaceId: "4b5db616-566e-422c-aeaf-562a7bebb13f",
-      calendarName: "Svätonázor Social Media",
       topLevelOnly: false,
       notionDateProperty: "Publish Date",
       eventType: "publish",
@@ -63,7 +65,6 @@ export function getSyncStreams(): SyncStream[] {
     {
       name: "Social Media (Deadline)",
       spaceId: "4b5db616-566e-422c-aeaf-562a7bebb13f",
-      calendarName: "Svätonázor Social Media",
       topLevelOnly: false,
       notionDateProperty: "Deadline",
       eventType: "deadline",
@@ -77,7 +78,6 @@ export function getSyncStreams(): SyncStream[] {
     {
       name: "Video",
       spaceId: "9a87fda0-ca7f-40c5-b89d-c2e05a8a4e7c",
-      calendarName: "Svätonázor Video",
       topLevelOnly: false,
       notionDateProperty: "Deadline",
       eventType: "deadline",
@@ -86,15 +86,22 @@ export function getSyncStreams(): SyncStream[] {
   ];
 }
 
+export function getSyncStreams(): SyncStream[] {
+  // Only Episodes feeds a team-wide calendar (the primary calendar with
+  // release dates). Other spaces are surfaced exclusively through the
+  // per-assignee calendars.
+  return getStreamTemplates().filter((s) => s.calendarId === "primary");
+}
+
 export function buildUserStreams(users: NotionUser[]): SyncStream[] {
   const streams: SyncStream[] = [];
-  const baseStreams = getSyncStreams();
+  const templates = getStreamTemplates();
   for (const user of users) {
     const calendarName = `Svätonázor – ${user.name}`;
-    for (const base of baseStreams) {
+    for (const template of templates) {
       streams.push({
-        ...base,
-        name: `${base.name} (${user.name})`,
+        ...template,
+        name: `${template.name} (${user.name})`,
         calendarId: undefined,
         calendarName,
         assigneeId: user.id,

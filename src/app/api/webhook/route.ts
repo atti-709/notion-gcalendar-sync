@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getEnv, getSyncStreams } from "@/lib/config";
+import { getEnv, getSyncStreams, buildUserStreams } from "@/lib/config";
 import type { SyncStream } from "@/lib/config";
 import {
   getNotionClient,
@@ -54,7 +54,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const cal = getCalendarClient();
     const databaseId = getEnv("NOTION_DATABASE_ID");
     const page = await fetchPage(notion, pageId);
-    const baseStreams = getSyncStreams();
 
     const spaceRelations: string[] = (page as any).properties?.Space?.relation?.map(
       (r: any) => r.id
@@ -72,35 +71,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (c.summary && c.id) calendarBySummary.set(c.summary, c.id);
     }
 
-    for (const baseStream of baseStreams) {
-      if (!spaceRelations.includes(baseStream.spaceId)) continue;
+    const allStreams: SyncStream[] = [
+      ...getSyncStreams(),
+      ...buildUserStreams(knownUsers),
+    ];
 
-      // Apply to the team (base) calendar.
-      const baseCalendarId = baseStream.calendarId
-        ?? calendarBySummary.get(baseStream.calendarName!)
-        ?? await findOrCreateCalendar(cal, baseStream.calendarName!);
-      await applyStreamToPage(cal, baseCalendarId, baseStream, page);
+    for (const stream of allStreams) {
+      if (!spaceRelations.includes(stream.spaceId)) continue;
 
-      // Apply to each known user's calendar.
-      for (const user of knownUsers) {
-        const userStream: SyncStream = {
-          ...baseStream,
-          calendarId: undefined,
-          calendarName: `Svätonázor – ${user.name}`,
-          assigneeId: user.id,
-        };
-        const isAssigned = currentAssigneeIds.has(user.id);
+      // For per-user streams, force-delete on the user's calendar when they
+      // aren't currently assigned (handles de-assignments and reassignments).
+      const isAssigned = stream.assigneeId
+        ? currentAssigneeIds.has(stream.assigneeId)
+        : true;
+      const forceDelete = !isAssigned;
 
-        let userCalendarId = calendarBySummary.get(userStream.calendarName!);
-        if (!userCalendarId && isAssigned) {
-          // Only create the user's calendar if they're currently assigned.
-          userCalendarId = await findOrCreateCalendar(cal, userStream.calendarName!);
-          calendarBySummary.set(userStream.calendarName!, userCalendarId);
+      let calendarId: string | undefined;
+      if (stream.calendarId) {
+        calendarId = stream.calendarId;
+      } else {
+        calendarId = calendarBySummary.get(stream.calendarName!);
+        if (!calendarId && !forceDelete) {
+          // Only create a missing calendar when we'd actually write to it.
+          calendarId = await findOrCreateCalendar(cal, stream.calendarName!);
+          calendarBySummary.set(stream.calendarName!, calendarId);
         }
-        if (!userCalendarId) continue;
-
-        await applyStreamToPage(cal, userCalendarId, userStream, page, !isAssigned);
       }
+      if (!calendarId) continue;
+
+      await applyStreamToPage(cal, calendarId, stream, page, forceDelete);
     }
 
     return NextResponse.json({ ok: true });

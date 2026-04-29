@@ -20,8 +20,10 @@ describe("getEnv", () => {
 });
 
 describe("getSyncStreams", () => {
-  it("returns 4 streams", () => {
-    expect(getSyncStreams()).toHaveLength(4);
+  it("returns only the Episodes base stream", () => {
+    const streams = getSyncStreams();
+    expect(streams).toHaveLength(1);
+    expect(streams[0].name).toBe("Episodes");
   });
 
   it("Episodes stream targets primary calendar", () => {
@@ -29,34 +31,6 @@ describe("getSyncStreams", () => {
     expect(episodes.calendarId).toBe("primary");
     expect(episodes.topLevelOnly).toBe(true);
     expect(episodes.eventType).toBe("publish");
-  });
-
-  it("Social Media Publish formats title with post type and platforms", () => {
-    const sm = getSyncStreams().find((s) => s.name === "Social Media (Publish)")!;
-    const title = sm.titleFormat({
-      pageId: "x",
-      taskName: "PROMO E05",
-      date: "2025-01-01",
-      status: "Not started",
-      isInTrash: false,
-      postType: "Reels",
-      platforms: ["Instagram"],
-    });
-    expect(title).toBe("[PUBLISH] PROMO E05 (Reels) [Instagram]");
-  });
-
-  it("Video stream formats title with deadline prefix", () => {
-    const video = getSyncStreams().find((s) => s.name === "Video")!;
-    const title = video.titleFormat({
-      pageId: "x",
-      taskName: "Edit episode",
-      date: "2025-01-01",
-      status: "Not started",
-      isInTrash: false,
-      postType: null,
-      platforms: [],
-    });
-    expect(title).toBe("[DEADLINE] Edit episode");
   });
 });
 
@@ -66,15 +40,15 @@ describe("buildUserStreams", () => {
     { id: "user-b", name: "Bob" },
   ];
 
-  it("emits one variant per base stream per user", () => {
+  it("emits all 4 stream templates per user (Episodes + Social ×2 + Video)", () => {
     const streams = buildUserStreams(users);
-    expect(streams).toHaveLength(getSyncStreams().length * users.length);
+    expect(streams).toHaveLength(4 * users.length);
   });
 
   it("scopes calendarName per user and overrides primary calendarId", () => {
     const streams = buildUserStreams(users);
     const aliceEpisodes = streams.find(
-      (s) => s.assigneeId === "user-a" && s.spaceId === getSyncStreams()[0].spaceId
+      (s) => s.assigneeId === "user-a" && s.name.startsWith("Episodes")
     )!;
     expect(aliceEpisodes.calendarName).toBe("Svätonázor – Alice");
     expect(aliceEpisodes.calendarId).toBeUndefined();
@@ -85,7 +59,7 @@ describe("buildUserStreams", () => {
     expect(streams.every((s) => s.assigneeId)).toBe(true);
   });
 
-  it("preserves the base stream's titleFormat", () => {
+  it("preserves the template's titleFormat", () => {
     const streams = buildUserStreams(users);
     const aliceVideo = streams.find(
       (s) => s.assigneeId === "user-a" && s.name.startsWith("Video")
