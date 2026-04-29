@@ -24,18 +24,36 @@ export function buildEventTitle(
   return base;
 }
 
+export async function listCalendars(
+  cal: calendar_v3.Calendar
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const list = await cal.calendarList.list();
+  for (const c of list.data.items ?? []) {
+    if (c.summary && c.id) map.set(c.summary, c.id);
+  }
+  return map;
+}
+
 export async function findOrCreateCalendar(
   cal: calendar_v3.Calendar,
-  name: string
+  name: string,
+  cache?: Map<string, string>
 ): Promise<string> {
-  const list = await cal.calendarList.list();
-  const existing = list.data.items?.find((c) => c.summary === name);
-  if (existing?.id) return existing.id;
+  if (cache?.has(name)) return cache.get(name)!;
+
+  if (!cache) {
+    const list = await cal.calendarList.list();
+    const existing = list.data.items?.find((c) => c.summary === name);
+    if (existing?.id) return existing.id;
+  }
 
   const created = await cal.calendars.insert({
     requestBody: { summary: name },
   });
-  return created.data.id!;
+  const id = created.data.id!;
+  cache?.set(name, id);
+  return id;
 }
 
 export async function getTrackedEvents(

@@ -16,6 +16,7 @@ import {
   updateEvent,
   deleteEvent,
   buildEventTitle,
+  listCalendars,
 } from "./google-calendar";
 
 export type SyncAction =
@@ -58,7 +59,10 @@ export interface SyncResult {
   skipped: number;
 }
 
-export async function syncStream(stream: SyncStream): Promise<SyncResult> {
+export async function syncStream(
+  stream: SyncStream,
+  calendarCache?: Map<string, string>
+): Promise<SyncResult> {
   const notion = getNotionClient();
   const cal = getCalendarClient();
   const databaseId = getEnv("NOTION_DATABASE_ID");
@@ -77,7 +81,7 @@ export async function syncStream(stream: SyncStream): Promise<SyncResult> {
   if (stream.calendarId) {
     calendarId = stream.calendarId;
   } else {
-    calendarId = await findOrCreateCalendar(cal, stream.calendarName!);
+    calendarId = await findOrCreateCalendar(cal, stream.calendarName!, calendarCache);
   }
 
   // Fetch Notion tasks
@@ -145,17 +149,50 @@ export async function syncStream(stream: SyncStream): Promise<SyncResult> {
   return result;
 }
 
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (next < items.length) {
+        const idx = next++;
+        results[idx] = await fn(items[idx]);
+      }
+    }
+  );
+  await Promise.all(workers);
+  return results;
+}
+
 export async function syncAll(): Promise<SyncResult[]> {
   const baseStreams = getSyncStreams();
   const notion = getNotionClient();
+  const cal = getCalendarClient();
   const databaseId = getEnv("NOTION_DATABASE_ID");
+
   const users = await discoverAssignees(notion, databaseId);
   const userStreams = buildUserStreams(users);
   const streams = [...baseStreams, ...userStreams];
 
-  const results: SyncResult[] = [];
-  for (const stream of streams) {
-    results.push(await syncStream(stream));
+  // Prefetch calendar list once and pre-create any missing user calendars
+  // sequentially to avoid races when streams run in parallel.
+  const calendarCache = await listCalendars(cal);
+  const namesToEnsure = new Set<string>();
+  for (const s of streams) {
+    if (!s.calendarId && s.calendarName) namesToEnsure.add(s.calendarName);
   }
-  return results;
+  for (const name of namesToEnsure) {
+    if (!calendarCache.has(name)) {
+      await findOrCreateCalendar(cal, name, calendarCache);
+    }
+  }
+
+  // Concurrency 3 keeps us under Notion's ~3 req/sec sustained rate limit
+  // while still cutting wall-clock from ~40 sequential streams to ~14.
+  return runWithConcurrency(streams, 3, (s) => syncStream(s, calendarCache));
 }
