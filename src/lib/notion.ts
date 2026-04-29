@@ -1,6 +1,6 @@
 import { Client } from "@notionhq/client";
 import { getEnv } from "./config";
-import type { TaskData } from "./config";
+import type { TaskData, NotionUser } from "./config";
 
 export function getNotionClient(): Client {
   return new Client({ auth: getEnv("NOTION_API_KEY") });
@@ -43,21 +43,25 @@ export async function queryTasksBySpace(
   databaseId: string,
   spaceId: string,
   dateProperty: string,
-  cutoffDate: string
+  cutoffDate: string,
+  assigneeId?: string
 ): Promise<any[]> {
   const pages: any[] = [];
   let cursor: string | undefined;
+
+  const filters: any[] = [
+    { property: "Space", relation: { contains: spaceId } },
+    { property: dateProperty, date: { on_or_after: cutoffDate } },
+  ];
+  if (assigneeId) {
+    filters.push({ property: "Assignee", people: { contains: assigneeId } });
+  }
 
   do {
     const response = await client.databases.query({
       database_id: databaseId,
       start_cursor: cursor,
-      filter: {
-        and: [
-          { property: "Space", relation: { contains: spaceId } },
-          { property: dateProperty, date: { on_or_after: cutoffDate } },
-        ],
-      },
+      filter: { and: filters },
     });
 
     pages.push(...response.results);
@@ -65,6 +69,33 @@ export async function queryTasksBySpace(
   } while (cursor);
 
   return pages;
+}
+
+export async function discoverAssignees(
+  client: Client,
+  databaseId: string
+): Promise<NotionUser[]> {
+  const seen = new Map<string, string>();
+  let cursor: string | undefined;
+
+  do {
+    const response: any = await client.databases.query({
+      database_id: databaseId,
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    for (const page of response.results) {
+      const people = page.properties?.Assignee?.people ?? [];
+      for (const p of people) {
+        if (p.name && !seen.has(p.id)) {
+          seen.set(p.id, p.name);
+        }
+      }
+    }
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return [...seen.entries()].map(([id, name]) => ({ id, name }));
 }
 
 export async function fetchPage(client: Client, pageId: string): Promise<any> {

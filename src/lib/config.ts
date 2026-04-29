@@ -17,6 +17,12 @@ export interface SyncStream {
   notionDateProperty: string; // "Publish Date" or "Deadline"
   eventType: NotionEventType;
   titleFormat: (task: TaskData) => string;
+  assigneeId?: string;       // if set, only sync tasks where Assignee contains this user
+}
+
+export interface NotionUser {
+  id: string;
+  name: string;
 }
 
 export interface TaskData {
@@ -78,6 +84,24 @@ export function getSyncStreams(): SyncStream[] {
       titleFormat: ({ taskName }) => `[DEADLINE] ${taskName}`,
     },
   ];
+}
+
+export function buildUserStreams(users: NotionUser[]): SyncStream[] {
+  const streams: SyncStream[] = [];
+  const baseStreams = getSyncStreams();
+  for (const user of users) {
+    const calendarName = `Svätonázor – ${user.name}`;
+    for (const base of baseStreams) {
+      streams.push({
+        ...base,
+        name: `${base.name} (${user.name})`,
+        calendarId: undefined,
+        calendarName,
+        assigneeId: user.id,
+      });
+    }
+  }
+  return streams;
 }
 
 export function getCutoffDate(): string {

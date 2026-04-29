@@ -41,17 +41,19 @@ export async function findOrCreateCalendar(
 export async function getTrackedEvents(
   cal: calendar_v3.Calendar,
   calendarId: string,
-  eventType: NotionEventType
+  eventType: NotionEventType,
+  spaceId?: string
 ): Promise<Map<string, calendar_v3.Schema$Event>> {
   const map = new Map<string, calendar_v3.Schema$Event>();
   let pageToken: string | undefined;
 
+  const privateExtendedProperty = [`notionEventType=${eventType}`];
+  if (spaceId) privateExtendedProperty.push(`notionSpaceId=${spaceId}`);
+
   do {
     const response = await cal.events.list({
       calendarId,
-      privateExtendedProperty: [
-        `notionEventType=${eventType}`,
-      ],
+      privateExtendedProperty,
       maxResults: 2500,
       singleEvents: true,
       pageToken,
@@ -69,12 +71,36 @@ export async function getTrackedEvents(
   return map;
 }
 
+export async function findEventByPageId(
+  cal: calendar_v3.Calendar,
+  calendarId: string,
+  pageId: string,
+  eventType: NotionEventType,
+  spaceId?: string
+): Promise<calendar_v3.Schema$Event | null> {
+  const privateExtendedProperty = [
+    `notionPageId=${pageId}`,
+    `notionEventType=${eventType}`,
+  ];
+  if (spaceId) privateExtendedProperty.push(`notionSpaceId=${spaceId}`);
+
+  const response = await cal.events.list({
+    calendarId,
+    privateExtendedProperty,
+    maxResults: 10,
+    singleEvents: true,
+  });
+
+  return response.data.items?.[0] ?? null;
+}
+
 export async function createEvent(
   cal: calendar_v3.Calendar,
   calendarId: string,
   task: TaskData,
   eventType: NotionEventType,
-  title: string
+  title: string,
+  spaceId: string
 ): Promise<void> {
   await cal.events.insert({
     calendarId,
@@ -87,6 +113,7 @@ export async function createEvent(
         private: {
           notionPageId: task.pageId,
           notionEventType: eventType,
+          notionSpaceId: spaceId,
         },
       },
     },

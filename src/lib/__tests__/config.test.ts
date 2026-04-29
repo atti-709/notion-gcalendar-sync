@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getSyncStreams, getCutoffDate } from "../config";
+import { getSyncStreams, getCutoffDate, buildUserStreams } from "../config";
 
 describe("getEnv", () => {
   beforeEach(() => {
@@ -57,6 +57,49 @@ describe("getSyncStreams", () => {
       platforms: [],
     });
     expect(title).toBe("[DEADLINE] Edit episode");
+  });
+});
+
+describe("buildUserStreams", () => {
+  const users = [
+    { id: "user-a", name: "Alice" },
+    { id: "user-b", name: "Bob" },
+  ];
+
+  it("emits one variant per base stream per user", () => {
+    const streams = buildUserStreams(users);
+    expect(streams).toHaveLength(getSyncStreams().length * users.length);
+  });
+
+  it("scopes calendarName per user and overrides primary calendarId", () => {
+    const streams = buildUserStreams(users);
+    const aliceEpisodes = streams.find(
+      (s) => s.assigneeId === "user-a" && s.spaceId === getSyncStreams()[0].spaceId
+    )!;
+    expect(aliceEpisodes.calendarName).toBe("Svätonázor – Alice");
+    expect(aliceEpisodes.calendarId).toBeUndefined();
+  });
+
+  it("attaches assigneeId to every emitted stream", () => {
+    const streams = buildUserStreams(users);
+    expect(streams.every((s) => s.assigneeId)).toBe(true);
+  });
+
+  it("preserves the base stream's titleFormat", () => {
+    const streams = buildUserStreams(users);
+    const aliceVideo = streams.find(
+      (s) => s.assigneeId === "user-a" && s.name.startsWith("Video")
+    )!;
+    const title = aliceVideo.titleFormat({
+      pageId: "x",
+      taskName: "Edit",
+      date: "2025-01-01",
+      status: "Not started",
+      isInTrash: false,
+      postType: null,
+      platforms: [],
+    });
+    expect(title).toBe("[DEADLINE] Edit");
   });
 });
 

@@ -1,7 +1,13 @@
 import type { calendar_v3 } from "googleapis";
 import type { TaskData, SyncStream, NotionEventType } from "./config";
-import { getEnv, getCutoffDate, getSyncStreams } from "./config";
-import { getNotionClient, queryTasksBySpace, parseNotionTask, hasParentTask } from "./notion";
+import { getEnv, getCutoffDate, getSyncStreams, buildUserStreams } from "./config";
+import {
+  getNotionClient,
+  queryTasksBySpace,
+  parseNotionTask,
+  hasParentTask,
+  discoverAssignees,
+} from "./notion";
 import {
   getCalendarClient,
   findOrCreateCalendar,
@@ -80,7 +86,8 @@ export async function syncStream(stream: SyncStream): Promise<SyncResult> {
     databaseId,
     stream.spaceId,
     stream.notionDateProperty,
-    cutoffDate
+    cutoffDate,
+    stream.assigneeId
   );
 
   // Filter top-level only if needed
@@ -95,8 +102,11 @@ export async function syncStream(stream: SyncStream): Promise<SyncResult> {
     if (task) tasks.push(task);
   }
 
-  // Fetch existing GCal events
-  const existingEvents = await getTrackedEvents(cal, calendarId, stream.eventType);
+  // Fetch existing GCal events. For per-user calendars, multiple streams of the
+  // same eventType share a calendar, so we must scope by spaceId to avoid the
+  // orphan-deletion loop wiping events created by other streams.
+  const trackedSpaceId = stream.assigneeId ? stream.spaceId : undefined;
+  const existingEvents = await getTrackedEvents(cal, calendarId, stream.eventType, trackedSpaceId);
 
   // Reconcile each task
   const seenPageIds = new Set<string>();
@@ -107,7 +117,7 @@ export async function syncStream(stream: SyncStream): Promise<SyncResult> {
 
     switch (action.action) {
       case "create":
-        await createEvent(cal, calendarId, task, stream.eventType, action.title);
+        await createEvent(cal, calendarId, task, stream.eventType, action.title, stream.spaceId);
         result.created++;
         break;
       case "update":
@@ -136,7 +146,13 @@ export async function syncStream(stream: SyncStream): Promise<SyncResult> {
 }
 
 export async function syncAll(): Promise<SyncResult[]> {
-  const streams = getSyncStreams();
+  const baseStreams = getSyncStreams();
+  const notion = getNotionClient();
+  const databaseId = getEnv("NOTION_DATABASE_ID");
+  const users = await discoverAssignees(notion, databaseId);
+  const userStreams = buildUserStreams(users);
+  const streams = [...baseStreams, ...userStreams];
+
   const results: SyncResult[] = [];
   for (const stream of streams) {
     results.push(await syncStream(stream));
