@@ -1,5 +1,6 @@
 import { google, calendar_v3 } from "googleapis";
 import { getEnv } from "./config";
+import { withBackoff } from "./retry";
 import type { TaskData, NotionEventType } from "./config";
 
 export function getCalendarClient(): calendar_v3.Calendar {
@@ -28,7 +29,7 @@ export async function listCalendars(
   cal: calendar_v3.Calendar
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
-  const list = await cal.calendarList.list();
+  const list = await withBackoff(() => cal.calendarList.list());
   for (const c of list.data.items ?? []) {
     if (c.summary && c.id) map.set(c.summary, c.id);
   }
@@ -43,14 +44,16 @@ export async function findOrCreateCalendar(
   if (cache?.has(name)) return cache.get(name)!;
 
   if (!cache) {
-    const list = await cal.calendarList.list();
+    const list = await withBackoff(() => cal.calendarList.list());
     const existing = list.data.items?.find((c) => c.summary === name);
     if (existing?.id) return existing.id;
   }
 
-  const created = await cal.calendars.insert({
-    requestBody: { summary: name },
-  });
+  const created = await withBackoff(() =>
+    cal.calendars.insert({
+      requestBody: { summary: name },
+    })
+  );
   const id = created.data.id!;
   cache?.set(name, id);
   return id;
@@ -69,13 +72,15 @@ export async function getTrackedEvents(
   if (spaceId) privateExtendedProperty.push(`notionSpaceId=${spaceId}`);
 
   do {
-    const response = await cal.events.list({
-      calendarId,
-      privateExtendedProperty,
-      maxResults: 2500,
-      singleEvents: true,
-      pageToken,
-    });
+    const response = await withBackoff(() =>
+      cal.events.list({
+        calendarId,
+        privateExtendedProperty,
+        maxResults: 2500,
+        singleEvents: true,
+        pageToken,
+      })
+    );
 
     for (const event of response.data.items ?? []) {
       const notionId = event.extendedProperties?.private?.notionPageId;
@@ -102,12 +107,14 @@ export async function findEventByPageId(
   ];
   if (spaceId) privateExtendedProperty.push(`notionSpaceId=${spaceId}`);
 
-  const response = await cal.events.list({
-    calendarId,
-    privateExtendedProperty,
-    maxResults: 10,
-    singleEvents: true,
-  });
+  const response = await withBackoff(() =>
+    cal.events.list({
+      calendarId,
+      privateExtendedProperty,
+      maxResults: 10,
+      singleEvents: true,
+    })
+  );
 
   return response.data.items?.[0] ?? null;
 }
@@ -120,22 +127,24 @@ export async function createEvent(
   title: string,
   spaceId: string
 ): Promise<void> {
-  await cal.events.insert({
-    calendarId,
-    requestBody: {
-      summary: title,
-      description: `https://notion.so/${task.pageId.replace(/-/g, "")}`,
-      start: { date: task.date },
-      end: { date: task.date },
-      extendedProperties: {
-        private: {
-          notionPageId: task.pageId,
-          notionEventType: eventType,
-          notionSpaceId: spaceId,
+  await withBackoff(() =>
+    cal.events.insert({
+      calendarId,
+      requestBody: {
+        summary: title,
+        description: `https://notion.so/${task.pageId.replace(/-/g, "")}`,
+        start: { date: task.date },
+        end: { date: task.date },
+        extendedProperties: {
+          private: {
+            notionPageId: task.pageId,
+            notionEventType: eventType,
+            notionSpaceId: spaceId,
+          },
         },
       },
-    },
-  });
+    })
+  );
 }
 
 export async function updateEvent(
@@ -145,16 +154,18 @@ export async function updateEvent(
   task: TaskData,
   title: string
 ): Promise<void> {
-  await cal.events.patch({
-    calendarId,
-    eventId,
-    requestBody: {
-      summary: title,
-      description: `https://notion.so/${task.pageId.replace(/-/g, "")}`,
-      start: { date: task.date },
-      end: { date: task.date },
-    },
-  });
+  await withBackoff(() =>
+    cal.events.patch({
+      calendarId,
+      eventId,
+      requestBody: {
+        summary: title,
+        description: `https://notion.so/${task.pageId.replace(/-/g, "")}`,
+        start: { date: task.date },
+        end: { date: task.date },
+      },
+    })
+  );
 }
 
 export async function deleteEvent(
@@ -162,5 +173,5 @@ export async function deleteEvent(
   calendarId: string,
   eventId: string
 ): Promise<void> {
-  await cal.events.delete({ calendarId, eventId });
+  await withBackoff(() => cal.events.delete({ calendarId, eventId }));
 }

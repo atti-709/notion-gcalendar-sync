@@ -16,6 +16,7 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  listCalendars,
 } from "@/lib/google-calendar";
 import { determineAction } from "@/lib/sync";
 import type { calendar_v3 } from "googleapis";
@@ -65,11 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Discover all known assignees + list calendars once. We need this to
     // propagate de-assignments to past assignees' calendars in real time.
     const knownUsers = await discoverAssignees(notion, databaseId);
-    const calendarList = await cal.calendarList.list();
-    const calendarBySummary = new Map<string, string>();
-    for (const c of calendarList.data.items ?? []) {
-      if (c.summary && c.id) calendarBySummary.set(c.summary, c.id);
-    }
+    const calendarBySummary = await listCalendars(cal);
 
     const allStreams: SyncStream[] = [
       ...getSyncStreams(),
